@@ -1,0 +1,40 @@
+name: Build App Installer OS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Home Overlay
+        run: |
+          cd home
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Build Rootfs
+        run: |
+          cd rootfs
+          chmod +x start.sh scripts/*.sh
+          mkdir -p out output
+          docker build -t goodluck-rootfs .
+          MOUNTS=""
+          for item in *; do
+            if [ "$item" != "buildroot" ] && [ "$item" != "Dockerfile" ]; then
+              MOUNTS="$MOUNTS -v $(pwd)/$item:/src/$item"
+            fi
+          done
+          docker run --rm $MOUNTS goodluck-rootfs bash -c "./scripts/configure.sh && ./scripts/build.sh"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: goodluckOS-appInstaller
+          path: |
+            rootfs/output/rootfs.tar
+            rootfs/out/images/rootfs.tar
+            home/out/home.tar
